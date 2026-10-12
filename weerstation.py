@@ -128,4 +128,4 @@ def live_weer():
         print("Windsnelheid:", huidig["wind_speed_10m"], "km/u")
 
     except (URLError, HTTPError, TimeoutError, ValueError, KeyError, OSError):
-        print("Het live weer kon niet worden opgehaald.")
+        print("Het live weer kon nie worden opgehaald.") 
