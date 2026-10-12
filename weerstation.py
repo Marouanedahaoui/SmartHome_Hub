@@ -1,95 +1,131 @@
-
 import json
-from pathlib import Path
 from urllib.request import urlopen
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
-# Bestandslocatie
-MAP = Path(__file__).resolve().parent
-WEERBESTAND = MAP / "weerdata.txt"
+
+def Fahrenheit(temp_celcius):
+    return 32 + 1.8 * temp_celcius
+
+
+def gevoelstemperatuur(temp_celcius, windsnelheid, luchtvochtigheid):
+    return temp_celcius - (luchtvochtigheid / 100) * windsnelheid
+
+
+def weerrapport(temp_celcius, windsnelheid, luchtvochtigheid):
+    gevoel = gevoelstemperatuur(
+        temp_celcius, windsnelheid, luchtvochtigheid
+    )
+
+    if gevoel < 0 and windsnelheid > 10:
+        return "Het is heel koud en het stormt! Verwarming tot de maxx aan!"
+
+    elif gevoel < 0 and windsnelheid <= 10:
+        return "Het is behoorlijk koud! Verwarming aan op de benedenverdieping!"
+
+    elif 0 <= gevoel < 10 and windsnelheid > 12:
+        return "Het is best koud en het waait; verwarming aan en roosters dicht onmiddelijk!"
+
+    elif 0 <= gevoel < 10 and windsnelheid <= 12:
+        return "Het is koud joh, elektrische kachel op de benedenverdieping aan!"
+
+    elif 10 <= gevoel < 22:
+        return "Oeehhhh lekker weer, niet te koudd en niet te warm :)"
+
+    else:
+        return "Warm! Doe de f*cking airco aan man"
+
+
+def vraag_getal(vraag, minimum=None, maximum=None):
+    while True:
+        invoer = input(vraag).strip()
+
+        if invoer == "":
+            return None
+
+        try:
+            waarde = float(invoer)
+
+            if not (float("-inf") < waarde < float("inf")):
+                print("Voer een geldig getal in.")
+                continue
+
+            if minimum is not None and waarde < minimum:
+                print(f"De waarde moet minimaal {minimum} zijn.")
+                continue
+
+            if maximum is not None and waarde > maximum:
+                print(f"De waarde mag maximaal {maximum} zijn.")
+                continue
+
+            return waarde
+
+        except ValueError:
+            print("Ongeldige invoer. Probeer opnieuw.")
 
 
 def weerstation():
-    print("\n===== WEERSTATION =====")
+    totaal_temperatuur = 0
 
-    try:
-        with open(WEERBESTAND, "r", encoding="utf-8") as bestand:
-            regels = bestand.readlines()
+    for dag in range(1, 8):
+        temperatuur = vraag_getal(
+            f"Wat is op dag {dag} de temperatuur[C]: "
+        )
 
-        if len(regels) <= 1:
-            print("Er zijn geen weergegevens beschikbaar.")
+        if temperatuur is None:
+            print("bye")
             return
 
-        print("\nDatum | Personen | Binnen | Buiten | Neerslag")
-        print("-" * 60)
+        windsnelheid = vraag_getal(
+            f"Wat is op dag {dag} de windsnelheid[m/s]: ",
+            minimum=0
+        )
 
-        for regel in regels[1:]:
-            gegevens = regel.split()
+        if windsnelheid is None:
+            print("bye")
+            return
 
-            if len(gegevens) != 5:
-                print("Ongeldige regel overgeslagen.")
-                continue
+        luchtvochtigheid = vraag_getal(
+            f"Wat is op dag {dag} de vochtigheid[%]: ",
+            minimum=0,
+            maximum=100
+        )
 
-            try:
-                datum = gegevens[0]
-                personen = int(gegevens[1])
-                binnen = float(gegevens[2])
-                buiten = float(gegevens[3])
-                neerslag = float(gegevens[4])
+        if luchtvochtigheid is None:
+            print("bye")
+            return
 
-                print(
-                    f"{datum} | {personen} personen | "
-                    f"{binnen:g}°C | {buiten:g}°C | "
-                    f"{neerslag:g} mm"
-                )
+        totaal_temperatuur += temperatuur
+        gemiddelde = totaal_temperatuur / dag
 
-            except ValueError:
-                print("Ongeldige weergegevens overgeslagen.")
+        fahrenheit = Fahrenheit(temperatuur)
 
-    except FileNotFoundError:
-        print("Het bestand weerdata.txt is niet gevonden.")
-        print("Python zoekt hier:", WEERBESTAND)
+        print(f"Het is {temperatuur:.1f}C ({fahrenheit:.1f}F)")
+        print(weerrapport(temperatuur, windsnelheid, luchtvochtigheid))
+        print(f"Gem. temp tot nu toe is {gemiddelde:.1f}")
+        print("======================================")
 
-    except OSError as fout:
-        print("Er is een fout bij het lezen:", fout)
+    print("Alle zeven dagen zijn ingevoerd.")
 
 
 def live_weer():
-    print("\n===== LIVE WEER UTRECHT =====")
-
     url = (
         "https://api.open-meteo.com/v1/forecast"
         "?latitude=52.09&longitude=5.12"
         "&current=temperature_2m,relative_humidity_2m,"
         "precipitation,wind_speed_10m"
-        "&timezone=Europe%2FAmsterdam"
     )
 
     try:
-        with urlopen(url, timeout=10) as response:
-            data = json.load(response)
+        with urlopen(url, timeout=10) as antwoord:
+            gegevens = json.load(antwoord)
 
-        weer = data["current"]
+        huidig = gegevens["current"]
 
-        temperatuur = weer["temperature_2m"]
-        luchtvochtigheid = weer["relative_humidity_2m"]
-        neerslag = weer["precipitation"]
-        windsnelheid = weer["wind_speed_10m"]
+        print("\nLive weer in Utrecht")
+        print("Temperatuur:", huidig["temperature_2m"], "°C")
+        print("Luchtvochtigheid:", huidig["relative_humidity_2m"], "%")
+        print("Neerslag:", huidig["precipitation"], "mm")
+        print("Windsnelheid:", huidig["wind_speed_10m"], "km/u")
 
-        print("Locatie: Utrecht")
-        print(f"Temperatuur: {temperatuur} °C")
-        print(f"Luchtvochtigheid: {luchtvochtigheid}%")
-        print(f"Neerslag: {neerslag} mm")
-        print(f"Windsnelheid: {windsnelheid} km/u")
-
-    except (URLError, TimeoutError):
-        print("Geen verbinding met de weer-API.")
-        print("Controleer je internetverbinding.")
-
-    except (KeyError, ValueError, OSError) as fout:
-        print("De weergegevens konden niet worden opgehaald.")
-        print("Foutmelding:", fout)
-
-
-if __name__ == "__main__":
-    weerstation()
+    except (URLError, HTTPError, TimeoutError, ValueError, KeyError, OSError):
+        print("Het live weer kon niet worden opgehaald.")
